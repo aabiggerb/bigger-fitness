@@ -1,0 +1,50 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "info": {
+      "es-MX": {
+        "title": "Bigger Fitness",
+        "subtitle": "Entrenamiento personal",
+        "description": "Bigger Fitness es la herramienta del entrenador personal moderno: gestiona clientes, diseña rutinas, registra entrenamientos en vivo con temporizador de descanso, lleva el historial de cargas y RPE, mide progreso con fotos y medidas, y agenda sesiones en tu calendario. Toda la información se guarda en tu dispositivo.\n\nCaracterísticas:\n• Biblioteca de ejercicios con GIFs demostrativos.\n• Creación y edición de rutinas.\n• Sesión en vivo con temporizador y registro de series.\n• Historial de entrenamientos y progreso por ejercicio.\n• Fotos y medidas corporales por cliente.\n• Calendario de sesiones.\n• Exportar plan de entrenamiento a PDF.",
+        "keywords": ["fitness", "entrenador", "rutinas", "gym", "personal trainer", "ejercicios", "musculacion"],
+        "marketingUrl": "",
+        "promoText": "Gestiona tus clientes y rutinas como un entrenador profesional.",
+        "supportUrl": "https://example.com/support",
+        "privacyPolicyUrl": "https://example.com/privacy",
+        "privacyChoicesUrl": "",
+        "privacyPolicyText": ""
+      }
+    },
+    "categories": ["HEALTH_AND_FITNESS"],
+    "release": {
+      "automaticRelease": true
+    },
+    "review": {
+      "firstName": "Nelson",
+      "lastName": "Contreras",
+      "email": "nesmann@hotmail.com",
+      "phone": "+56000000000",
+      "demoUsername": "",
+      "demoPassword": "",
+      "notes": "App de gestion de entrenamiento personal. No requiere login. Toda la informacion se guarda localmente en el dispositivo."
+    },
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "gambling": false,
+      "unrestrictedWebAccess": false,
+      "kidsAgeBand": null,
+      "seventeenPlus": false
+    }
+  }
+}
