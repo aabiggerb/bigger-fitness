@@ -54,7 +54,8 @@
         {
           "sounds": []
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "router": {},
