@@ -22,8 +22,11 @@
     "production": {
       "ios": {
         "appleId": "nesmann@hotmail.com",
-        "ascAppId": "REEMPLAZAR_CON_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "GX9SC7PU7Q"
+        "ascAppId": "6766412744",
+        "appleTeamId": "GX9SC7PU7Q",
+        "ascApiKeyPath": "/Users/arturobigger/.appstoreconnect/AuthKey_5QKK95DWA4.p8",
+        "ascApiKeyId": "5QKK95DWA4",
+        "ascApiKeyIssuerId": "3bf36660-5e70-4f35-ba55-4e8ba75a04e2"
       }
     }
   }
