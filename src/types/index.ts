@@ -55,6 +55,7 @@ export interface ClientPlan {
   endDate?: string;
   daysPerWeek: number;
   weekDays: WeekDay[]; // specific days assigned
+  weekDayTimes?: Partial<Record<WeekDay, string>>; // HH:mm scheduled time per day
   notes?: string;
   active: boolean;
 }

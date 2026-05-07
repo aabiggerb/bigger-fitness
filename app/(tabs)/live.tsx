@@ -521,6 +521,7 @@ export default function LiveSessionScreen() {
 
     // If rest timer is already active for this athlete, just open the modal
     if (selectedSession.status === 'resting' && selectedSession.restTimerMs > 0) {
+      Keyboard.dismiss();
       setShowTimerModal(true);
       return;
     }
@@ -568,6 +569,7 @@ export default function LiveSessionScreen() {
 
   // ─── Auto-show overlay when alarm fires (even if minimized) ────
   const handleAlarmStart = useCallback(() => {
+    Keyboard.dismiss();
     setShowTimerModal(true);
   }, []);
 
@@ -941,6 +943,7 @@ export default function LiveSessionScreen() {
                     handleAthleteReady(selectedAthlete!);
                   } else {
                     // Re-open timer modal (don't change key — keep running timer)
+                    Keyboard.dismiss();
                     setShowTimerModal(true);
                   }
                 }}

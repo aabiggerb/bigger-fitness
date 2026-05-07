@@ -4,6 +4,7 @@ import {
   Modal, FlatList, TextInput, Keyboard, KeyboardAvoidingView, Platform,
   TouchableWithoutFeedback,
 } from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAppData } from '../../src/context/AppDataContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -49,6 +50,16 @@ export default function PlanScreen() {
   // Modal for adding exercise to plan
   const [showAddExercise, setShowAddExercise] = useState(false);
 
+  // Time picker for scheduling a day
+  const [timePickerCtx, setTimePickerCtx] = useState<{ planId: string; day: WeekDay } | null>(null);
+  const [tempTime, setTempTime] = useState<Date>(() => {
+    const d = new Date(); d.setHours(9, 0, 0, 0); return d;
+  });
+
+  // New plan day-time map (for assign modal)
+  const [newPlanTimes, setNewPlanTimes] = useState<Partial<Record<WeekDay, string>>>({});
+  const [assignTimePickerDay, setAssignTimePickerDay] = useState<WeekDay | null>(null);
+
   // Keyboard visibility
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   useEffect(() => {
@@ -69,6 +80,72 @@ export default function PlanScreen() {
 
   const getExerciseName = (exerciseId: string) =>
     exercises.find(e => e.id === exerciseId)?.name || 'Desconocido';
+
+  // ─── Helpers: time formatting + conflict detection ───
+  const fmtTime = (hhmm: string) => hhmm; // already HH:mm
+  const dateToHHMM = (d: Date) => {
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  };
+  const hhmmToMinutes = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(n => parseInt(n, 10));
+    return h * 60 + m;
+  };
+
+  // Returns conflicts (other clients scheduled within ±60 min on same day)
+  const findConflicts = (
+    targetClientId: string,
+    day: WeekDay,
+    hhmm: string,
+    ignorePlanId?: string,
+  ): { clientName: string; time: string }[] => {
+    const targetMin = hhmmToMinutes(hhmm);
+    const out: { clientName: string; time: string }[] = [];
+    for (const c of clients) {
+      for (const p of c.plans) {
+        if (!p.active) continue;
+        if (ignorePlanId && p.id === ignorePlanId) continue;
+        if (c.id === targetClientId && p.id === ignorePlanId) continue;
+        if (!p.weekDays?.includes(day)) continue;
+        const t = p.weekDayTimes?.[day];
+        if (!t) continue;
+        if (Math.abs(hhmmToMinutes(t) - targetMin) < 60) {
+          out.push({ clientName: c.name, time: t });
+        }
+      }
+    }
+    return out;
+  };
+
+  const applyTimeToPlan = (planId: string, day: WeekDay, hhmm: string) => {
+    const plan = client.plans.find(p => p.id === planId);
+    if (!plan) return;
+    const newTimes = { ...(plan.weekDayTimes || {}), [day]: hhmm };
+    const newDays = plan.weekDays.includes(day) ? plan.weekDays : [...plan.weekDays, day];
+    updatePlan(client.id, planId, {
+      weekDays: newDays,
+      daysPerWeek: newDays.length,
+      weekDayTimes: newTimes,
+    });
+  };
+
+  const confirmAndSetTime = (planId: string, day: WeekDay, hhmm: string) => {
+    const conflicts = findConflicts(client.id, day, hhmm, planId);
+    if (conflicts.length > 0) {
+      const list = conflicts.map(c => `• ${c.clientName} a las ${c.time}`).join('\n');
+      Alert.alert(
+        'Conflicto de horario',
+        `Ya tienes a otro cliente agendado cerca de las ${hhmm} el ${day}:\n\n${list}\n\n¿Agendar de todas formas?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Agendar', onPress: () => applyTimeToPlan(planId, day, hhmm) },
+        ],
+      );
+    } else {
+      applyTimeToPlan(planId, day, hhmm);
+    }
+  };
 
   // ─── Assign new plan (copy from routine template) ───
   const handleAssignRoutine = (routineId: string) => {
@@ -94,14 +171,40 @@ export default function PlanScreen() {
       startDate: new Date().toISOString().split('T')[0],
       daysPerWeek: selectedDays.length,
       weekDays: [...selectedDays],
+      weekDayTimes: { ...newPlanTimes },
       notes: '',
       active: true,
     };
 
-    assignPlan(client.id, plan);
-    setShowAssignModal(false);
-    setSelectedDays(['lunes']);
-    Alert.alert('Plan Asignado', `"${routine.name}" copiado como plan personalizado para ${client.name}.`);
+    // Check conflicts before assigning
+    const allConflicts: string[] = [];
+    selectedDays.forEach(d => {
+      const t = newPlanTimes[d];
+      if (!t) return;
+      const cs = findConflicts(client.id, d, t);
+      cs.forEach(c => allConflicts.push(`• ${d} ${t} — ${c.clientName} (${c.time})`));
+    });
+
+    const doAssign = () => {
+      assignPlan(client.id, plan);
+      setShowAssignModal(false);
+      setSelectedDays(['lunes']);
+      setNewPlanTimes({});
+      Alert.alert('Plan Asignado', `"${routine.name}" copiado como plan personalizado para ${client.name}.`);
+    };
+
+    if (allConflicts.length > 0) {
+      Alert.alert(
+        'Conflictos de horario',
+        `Hay choques con otros clientes:\n\n${allConflicts.join('\n')}\n\n¿Agendar de todas formas?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Agendar', onPress: doAssign },
+        ],
+      );
+    } else {
+      doAssign();
+    }
   };
 
   const handleRemovePlan = (planId: string) => {
@@ -129,10 +232,55 @@ export default function PlanScreen() {
     const plan = client.plans.find(p => p.id === planId);
     if (!plan) return;
     const currentDays = plan.weekDays || [];
-    const newDays = currentDays.includes(day)
-      ? currentDays.filter(d => d !== day)
-      : [...currentDays, day];
-    updatePlan(client.id, planId, { weekDays: newDays, daysPerWeek: newDays.length });
+    const isAdding = !currentDays.includes(day);
+    const newDays = isAdding
+      ? [...currentDays, day]
+      : currentDays.filter(d => d !== day);
+    const newTimes = { ...(plan.weekDayTimes || {}) };
+    if (!isAdding) delete newTimes[day];
+    updatePlan(client.id, planId, {
+      weekDays: newDays,
+      daysPerWeek: newDays.length,
+      weekDayTimes: newTimes,
+    });
+    if (isAdding) {
+      // Open time picker right after adding
+      const d = new Date(); d.setHours(9, 0, 0, 0);
+      setTempTime(d);
+      setTimePickerCtx({ planId, day });
+    }
+  };
+
+  const openTimePicker = (planId: string, day: WeekDay) => {
+    const plan = client.plans.find(p => p.id === planId);
+    const existing = plan?.weekDayTimes?.[day];
+    const d = new Date();
+    if (existing) {
+      const [h, m] = existing.split(':').map(n => parseInt(n, 10));
+      d.setHours(h, m, 0, 0);
+    } else {
+      d.setHours(9, 0, 0, 0);
+    }
+    setTempTime(d);
+    setTimePickerCtx({ planId, day });
+  };
+
+  const onTimePickerChange = (event: DateTimePickerEvent, selected?: Date) => {
+    if (Platform.OS === 'android') {
+      const ctx = timePickerCtx;
+      setTimePickerCtx(null);
+      if (event.type === 'set' && selected && ctx) {
+        confirmAndSetTime(ctx.planId, ctx.day, dateToHHMM(selected));
+      }
+    } else if (selected) {
+      setTempTime(selected);
+    }
+  };
+
+  const confirmIosTime = () => {
+    if (!timePickerCtx) return;
+    confirmAndSetTime(timePickerCtx.planId, timePickerCtx.day, dateToHHMM(tempTime));
+    setTimePickerCtx(null);
   };
 
   const openEditExercise = (planId: string, idx: number) => {
@@ -251,17 +399,29 @@ export default function PlanScreen() {
         <View style={s.weekDaysRow}>
           {ALL_DAYS.map(({ key, short }) => {
             const isSelected = planWeekDays.includes(key);
+            const time = plan.weekDayTimes?.[key];
             return (
               <TouchableOpacity
                 key={key}
                 style={[s.weekDayChip, isSelected && s.weekDayChipActive]}
-                onPress={() => isEditing && togglePlanDay(plan.id, key)}
+                onPress={() => {
+                  if (!isEditing) return;
+                  if (isSelected) {
+                    openTimePicker(plan.id, key);
+                  } else {
+                    togglePlanDay(plan.id, key);
+                  }
+                }}
+                onLongPress={() => isEditing && isSelected && togglePlanDay(plan.id, key)}
                 disabled={!isEditing}
                 activeOpacity={isEditing ? 0.7 : 1}
               >
                 <Text style={[s.weekDayText, isSelected && s.weekDayTextActive]}>
                   {short}
                 </Text>
+                {isSelected && time && (
+                  <Text style={[s.weekDayTime, isSelected && s.weekDayTimeActive]}>{time}</Text>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -271,7 +431,7 @@ export default function PlanScreen() {
           <View style={s.editHint}>
             <Ionicons name="information-circle" size={14} color={C.accent} />
             <Text style={s.editHintText}>
-              Toca los días o ejercicios para editar. Cambios solo afectan este plan.
+              Toca un día activo para fijar hora • Mantén presionado para quitarlo
             </Text>
           </View>
         )}
@@ -409,6 +569,29 @@ export default function PlanScreen() {
                 <Text style={s.dayPickerInfo}>
                   {selectedDays.length} día{selectedDays.length !== 1 ? 's' : ''} seleccionado{selectedDays.length !== 1 ? 's' : ''}
                 </Text>
+
+                {selectedDays.length > 0 && (
+                  <View style={s.assignTimesWrap}>
+                    <Text style={s.assignTimesLabel}>Hora por día (opcional):</Text>
+                    <View style={s.assignTimesGrid}>
+                      {selectedDays.map(day => {
+                        const t = newPlanTimes[day];
+                        return (
+                          <TouchableOpacity
+                            key={day}
+                            style={s.assignTimeChip}
+                            onPress={() => setAssignTimePickerDay(day)}
+                          >
+                            <Ionicons name="time-outline" size={12} color={C.accent} />
+                            <Text style={s.assignTimeChipText}>
+                              {day.slice(0, 3)} {t || '— : —'}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Search bar */}
@@ -607,6 +790,123 @@ export default function PlanScreen() {
           />
         </View>
       </Modal>
+
+      {/* ─── Time Picker for plan day (edit mode) ─── */}
+      {timePickerCtx && Platform.OS === 'ios' && (
+        <Modal visible transparent animationType="fade">
+          <View style={s.timePickerOverlay}>
+            <View style={s.timePickerCard}>
+              <Text style={s.timePickerTitle}>Hora del entrenamiento</Text>
+              <Text style={s.timePickerSub}>{timePickerCtx.day}</Text>
+              <DateTimePicker
+                value={tempTime}
+                mode="time"
+                display="spinner"
+                onChange={onTimePickerChange}
+                themeVariant="dark"
+                style={{ alignSelf: 'stretch' }}
+              />
+              <View style={s.editBtnRow}>
+                <TouchableOpacity
+                  style={s.editCancelBtn}
+                  onPress={() => setTimePickerCtx(null)}
+                >
+                  <Text style={s.editCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.editSaveBtn} onPress={confirmIosTime}>
+                  <Text style={s.editSaveText}>Guardar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+      {timePickerCtx && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={tempTime}
+          mode="time"
+          is24Hour
+          display="default"
+          onChange={onTimePickerChange}
+        />
+      )}
+
+      {/* ─── Time Picker for assign-modal day ─── */}
+      {assignTimePickerDay && Platform.OS === 'ios' && (
+        <Modal visible transparent animationType="fade">
+          <View style={s.timePickerOverlay}>
+            <View style={s.timePickerCard}>
+              <Text style={s.timePickerTitle}>Hora del entrenamiento</Text>
+              <Text style={s.timePickerSub}>{assignTimePickerDay}</Text>
+              <DateTimePicker
+                value={(() => {
+                  const t = newPlanTimes[assignTimePickerDay];
+                  const d = new Date();
+                  if (t) {
+                    const [h, m] = t.split(':').map(n => parseInt(n, 10));
+                    d.setHours(h, m, 0, 0);
+                  } else {
+                    d.setHours(9, 0, 0, 0);
+                  }
+                  return d;
+                })()}
+                mode="time"
+                display="spinner"
+                themeVariant="dark"
+                style={{ alignSelf: 'stretch' }}
+                onChange={(_e, sel) => {
+                  if (sel) setTempTime(sel);
+                }}
+              />
+              <View style={s.editBtnRow}>
+                <TouchableOpacity
+                  style={s.editCancelBtn}
+                  onPress={() => setAssignTimePickerDay(null)}
+                >
+                  <Text style={s.editCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.editSaveBtn}
+                  onPress={() => {
+                    const day = assignTimePickerDay;
+                    if (!day) return;
+                    const hhmm = dateToHHMM(tempTime);
+                    setNewPlanTimes(prev => ({ ...prev, [day]: hhmm }));
+                    setAssignTimePickerDay(null);
+                  }}
+                >
+                  <Text style={s.editSaveText}>Guardar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+      {assignTimePickerDay && Platform.OS === 'android' && (
+        <DateTimePicker
+          value={(() => {
+            const t = newPlanTimes[assignTimePickerDay];
+            const d = new Date();
+            if (t) {
+              const [h, m] = t.split(':').map(n => parseInt(n, 10));
+              d.setHours(h, m, 0, 0);
+            } else {
+              d.setHours(9, 0, 0, 0);
+            }
+            return d;
+          })()}
+          mode="time"
+          is24Hour
+          display="default"
+          onChange={(event, selected) => {
+            const day = assignTimePickerDay;
+            setAssignTimePickerDay(null);
+            if (event.type === 'set' && selected && day) {
+              setNewPlanTimes(prev => ({ ...prev, [day]: dateToHHMM(selected) }));
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -632,10 +932,21 @@ const createStyles = (C: ThemeColors) => StyleSheet.create({
   planInfoItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   planInfoText: { color: C.muted, fontSize: 12 },
   weekDaysRow: { flexDirection: 'row', paddingHorizontal: 14, gap: 6, marginBottom: 8 },
-  weekDayChip: { flex: 1, height: 32, borderRadius: 8, backgroundColor: C.border, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  weekDayChip: { flex: 1, minHeight: 32, paddingVertical: 4, borderRadius: 8, backgroundColor: C.border, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: C.border },
   weekDayChipActive: { backgroundColor: C.accent, borderColor: C.accent },
   weekDayText: { color: C.muted, fontSize: 12, fontWeight: '700' },
   weekDayTextActive: { color: C.bg },
+  weekDayTime: { color: C.muted, fontSize: 9, fontWeight: '600', marginTop: 1, fontVariant: ['tabular-nums'] },
+  weekDayTimeActive: { color: C.bg },
+  assignTimesWrap: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: C.border },
+  assignTimesLabel: { color: C.text, fontSize: 13, fontWeight: '600', marginBottom: 8 },
+  assignTimesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  assignTimeChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.accentDim, borderWidth: 1, borderColor: C.accent },
+  assignTimeChipText: { color: C.accent, fontSize: 12, fontWeight: '600', textTransform: 'capitalize' },
+  timePickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', paddingHorizontal: 24 },
+  timePickerCard: { backgroundColor: C.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: C.border },
+  timePickerTitle: { color: C.text, fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  timePickerSub: { color: C.accent, fontSize: 13, textAlign: 'center', marginTop: 2, marginBottom: 8, textTransform: 'capitalize' },
   editHint: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, marginBottom: 8, backgroundColor: C.accentDim, paddingVertical: 6, marginHorizontal: 10, borderRadius: 8 },
   editHintText: { color: C.accent, fontSize: 11, flex: 1 },
   exerciseList: { borderTopWidth: 1, borderTopColor: C.border, paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10 },
