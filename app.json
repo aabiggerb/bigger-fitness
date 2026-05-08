@@ -13,6 +13,9 @@
       "bundleIdentifier": "com.asysa.biggerfitness",
       "appleTeamId": "GX9SC7PU7Q",
       "backgroundColor": "#0a192f",
+      "entitlements": {
+        "com.apple.developer.usernotifications.time-sensitive": true
+      },
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"

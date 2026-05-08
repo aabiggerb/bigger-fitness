@@ -1306,6 +1306,7 @@ export default function LiveSessionScreen() {
                 onModeChange={setPreferredAnalogMode}
                 alarmUntilDismissed
                 autoStart={timerAutoStart}
+                athleteName={selectedClient?.name}
               />
             </View>
             <TouchableOpacity

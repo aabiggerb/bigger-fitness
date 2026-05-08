@@ -49,7 +49,10 @@ export async function scheduleRestTimerNotification(
         body,
         sound: Platform.OS === 'ios' ? 'default' : undefined,
         priority: Notifications.AndroidNotificationPriority.HIGH,
-      },
+        // iOS: Time-Sensitive bypasses Focus / Do Not Disturb so the alarm
+        // fires even with the screen off and notifications grouped.
+        interruptionLevel: 'timeSensitive',
+      } as any,
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds: Math.max(1, Math.round(seconds)),

@@ -348,6 +348,7 @@ export default function WorkoutScreen() {
           <RestTimer
             defaultRestSeconds={activeTimerEntry !== null ? getRestSecondsForEntry(activeTimerEntry) : 90}
             onTimerComplete={handleTimerComplete}
+            athleteName={client?.name}
           />
         </View>
       )}
