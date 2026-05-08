@@ -15,6 +15,7 @@ import {
   previewAlarmSound,
   stopAlarmSound,
 } from '../../src/utils/alarmSound';
+import RestTimerActivity from '../../modules/rest-timer-activity';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 48 - 12) / 2; // 2 columns, 16px padding each side + 12px gap
@@ -342,6 +343,39 @@ export default function SettingsScreen() {
         >
           <Ionicons name="refresh-outline" size={16} color={C.danger} />
           <Text style={[styles.resetBtnText, { color: C.danger }]}>Restablecer Configuración</Text>
+        </TouchableOpacity>
+
+        {/* Live Activity diagnostics */}
+        <TouchableOpacity
+          style={[styles.resetBtn, { borderColor: C.accent + '40', marginTop: 8 }]}
+          onPress={async () => {
+            const d = RestTimerActivity.diagnostics();
+            const testId = await RestTimerActivity.start({
+              athleteName: 'Diagnóstico',
+              totalSec: 30,
+              remainingSec: 30,
+            });
+            const after = RestTimerActivity.diagnostics();
+            Alert.alert(
+              'Live Activity — Diagnóstico',
+              `Plataforma: ${d.platform}\n` +
+              `Módulo nativo enlazado: ${d.moduleLinked ? 'SÍ' : 'NO'}\n` +
+              `Live Activities habilitadas (Ajustes): ${d.liveActivitiesEnabled ? 'SÍ' : 'NO'}\n` +
+              `Test start → ID: ${testId ?? 'null'}\n` +
+              `Último error: ${after.lastError ?? '—'}\n\n` +
+              (testId
+                ? 'Mira la Dynamic Island / pantalla bloqueada ahora. Pulsa OK para detenerla.'
+                : 'No se pudo iniciar. Revisa Ajustes → Bigger Fitness → Permitir actividades en vivo.'),
+              [{
+                text: 'OK',
+                onPress: () => { if (testId) RestTimerActivity.end(true); },
+              }]
+            );
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="bug-outline" size={16} color={C.accent} />
+          <Text style={[styles.resetBtnText, { color: C.accent }]}>Probar Live Activity</Text>
         </TouchableOpacity>
 
         {/* Footer */}
