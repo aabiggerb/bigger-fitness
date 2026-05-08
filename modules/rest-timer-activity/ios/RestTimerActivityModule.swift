@@ -15,7 +15,10 @@ public class RestTimerActivityModule: Module {
     }
 
     AsyncFunction("startActivity") { (args: [String: Any], promise: Promise) in
-      guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+      let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
+      NSLog("[BiggerFitness][LiveActivity] startActivity called. authEnabled=%@ args=%@", enabled ? "YES" : "NO", args)
+      guard enabled else {
+        NSLog("[BiggerFitness][LiveActivity] aborting: Live Activities NOT enabled by user/system")
         promise.resolve(NSNull())
         return
       }
@@ -45,12 +48,15 @@ public class RestTimerActivityModule: Module {
               pushType: nil
             )
             Self.currentActivityID = activity.id
+            NSLog("[BiggerFitness][LiveActivity] Activity.request OK id=%@", activity.id)
             promise.resolve(activity.id)
           } else {
+            NSLog("[BiggerFitness][LiveActivity] iOS < 16.2, cannot start")
             promise.resolve(NSNull())
           }
         } catch {
-          promise.resolve(NSNull())
+          NSLog("[BiggerFitness][LiveActivity] Activity.request FAILED: %@", String(describing: error))
+          promise.reject("E_ACTIVITY_REQUEST", "Activity.request failed: \(error.localizedDescription)")
         }
       }
     }

@@ -108,16 +108,21 @@ export default function LiveSessionScreen() {
   const [preferredAnalogMode, setPreferredAnalogMode] = useState(true);
   // Track if timer was auto-started to avoid re-triggering
   const [timerAutoStart, setTimerAutoStart] = useState(false);
+  // Pending timer config: when set, the timer will open AFTER the RPE modal closes.
+  // This avoids the keyboard popping up because the timer overlay mounts while a
+  // TextInput underneath still has focus.
+  const pendingTimerOpenRef = useRef(false);
 
   // Force-dismiss keyboard whenever timer overlay opens (overlay is not a Modal,
-  // so underlying TextInputs keep focus otherwise).
+  // so underlying TextInputs keep focus otherwise). Use a listener so any TextInput
+  // that tries to refocus while the timer is up gets the keyboard dismissed again.
   useEffect(() => {
-    if (showTimerModal) {
-      Keyboard.dismiss();
-      // Run again on next tick in case a TextInput re-focused after the state update
-      const t = setTimeout(() => Keyboard.dismiss(), 50);
-      return () => clearTimeout(t);
-    }
+    if (!showTimerModal) return;
+    Keyboard.dismiss();
+    const t1 = setTimeout(() => Keyboard.dismiss(), 50);
+    const t2 = setTimeout(() => Keyboard.dismiss(), 250);
+    const sub = Keyboard.addListener('keyboardDidShow', () => Keyboard.dismiss());
+    return () => { clearTimeout(t1); clearTimeout(t2); sub.remove(); };
   }, [showTimerModal]);
   // Key to remount RestTimer only when starting a new rest period
   const [timerKey, setTimerKey] = useState(0);
@@ -569,12 +574,14 @@ export default function LiveSessionScreen() {
     // Also start background timer for the carousel badge
     startRestForAthlete(selectedAthlete, restSec);
 
-    // Open the full timer modal with analog clock
+    // Prepare the full-screen timer but DO NOT open it yet — wait for RPE to close.
+    // Opening it together causes the underlying TextInput to keep focus and the
+    // keyboard re-appears on top of the analog clock.
     setTimerAthleteId(selectedAthlete);
     setTimerDefaultSec(restSec);
     setTimerAutoStart(true);
     setTimerKey(prev => prev + 1); // Force remount to reset timer state
-    setShowTimerModal(true);
+    pendingTimerOpenRef.current = true;
     Keyboard.dismiss();
   };
 
@@ -652,6 +659,18 @@ export default function LiveSessionScreen() {
     dismissReady(clientId);
   };
 
+  // Open the deferred timer overlay after the RPE modal finishes closing.
+  // Wrapped in a small timeout so the keyboard (if any) has time to fully dismiss.
+  const openPendingTimerIfAny = useCallback(() => {
+    if (!pendingTimerOpenRef.current) return;
+    pendingTimerOpenRef.current = false;
+    Keyboard.dismiss();
+    setTimeout(() => {
+      Keyboard.dismiss();
+      setShowTimerModal(true);
+    }, 200);
+  }, []);
+
   const handleRPESubmit = (rpe: number) => {
     if (rpeFeedbackCtx) {
       updateSession(rpeFeedbackCtx.clientId, s => {
@@ -669,6 +688,7 @@ export default function LiveSessionScreen() {
     }
     setShowRPEModal(false);
     setRpeFeedbackCtx(null);
+    openPendingTimerIfAny();
   };
 
   // Count ready athletes for notification badge
@@ -1098,8 +1118,9 @@ export default function LiveSessionScreen() {
                       const targetIdx = firstIncomplete >= 0 ? firstIncomplete : entry.sets.length - 1;
                       triggerRestForSelected(eIdx, targetIdx);
                     }}
+                    activeOpacity={0.85}
                   >
-                    <Ionicons name="timer-outline" size={14} color={C.warning} />
+                    <Ionicons name="timer" size={20} color="#0a1f0a" />
                     <Text style={s.restBtnText}>Descanso</Text>
                   </TouchableOpacity>
                 </View>
@@ -1304,7 +1325,7 @@ export default function LiveSessionScreen() {
         exerciseName={rpeFeedbackCtx?.exerciseName || ''}
         setNumber={rpeFeedbackCtx?.setNumber || 1}
         onSubmit={handleRPESubmit}
-        onSkip={() => { setShowRPEModal(false); setRpeFeedbackCtx(null); }}
+        onSkip={() => { setShowRPEModal(false); setRpeFeedbackCtx(null); openPendingTimerIfAny(); }}
       />
     </SafeAreaView>
   );
@@ -1528,11 +1549,13 @@ const createStyles = (C: ThemeColors) => StyleSheet.create({
   },
   addSetText: { color: C.accent, fontSize: 11, fontWeight: '600' },
   restBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 8, gap: 4,
+    flex: 1.6,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 14, gap: 8,
+    backgroundColor: C.success,
     borderLeftWidth: 1, borderLeftColor: C.border,
   },
-  restBtnText: { color: C.warning, fontSize: 11, fontWeight: '600' },
+  restBtnText: { color: '#0a1f0a', fontSize: 15, fontWeight: '800', letterSpacing: 0.3 },
 
   // Add more
   addMoreRow: { flexDirection: 'row', gap: 8, marginHorizontal: 14, marginTop: 10 },

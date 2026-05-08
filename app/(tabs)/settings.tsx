@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Dimensions, Switch, Alert,
+  Animated, Dimensions, Switch, Alert, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -43,6 +43,48 @@ export default function SettingsScreen() {
       stopAlarmSound();
     }
   }, [showAlarmPicker]);
+
+  // ─── Live Activity diagnostic state ────
+  const [liveActivityReport, setLiveActivityReport] = useState<string | null>(null);
+
+  const runLiveActivityDiag = async () => {
+    const lines: string[] = [];
+    const ts = new Date().toLocaleTimeString();
+    lines.push(`Diagnóstico ${ts}`);
+    const before = RestTimerActivity.diagnostics();
+    lines.push(`• Plataforma: ${before.platform}`);
+    lines.push(`• Módulo nativo enlazado: ${before.moduleLinked ? 'SÍ' : 'NO'}`);
+    lines.push(`• Permiso (Ajustes): ${before.liveActivitiesEnabled ? 'SÍ' : 'NO'}`);
+    lines.push(`• isSupported: ${RestTimerActivity.isSupported}`);
+    let testId: string | null = null;
+    try {
+      testId = await RestTimerActivity.start({
+        athleteName: 'Diagnóstico',
+        totalSec: 30,
+        remainingSec: 30,
+      });
+      lines.push(`• start() → ${testId ?? 'null'}`);
+    } catch (e: unknown) {
+      lines.push(`• start() THREW: ${String(e)}`);
+    }
+    const after = RestTimerActivity.diagnostics();
+    lines.push(`• lastError: ${after.lastError ?? '—'}`);
+    if (testId) {
+      lines.push('Live Activity iniciada. Mira pantalla bloqueada / Dynamic Island.');
+    } else {
+      lines.push('NO se inició. Revisa Ajustes → Bigger Fitness → "Permitir actividades en vivo".');
+    }
+    const report = lines.join('\n');
+    setLiveActivityReport(report);
+    Alert.alert(
+      'Live Activity — Diagnóstico',
+      report,
+      [{
+        text: testId ? 'Detener' : 'OK',
+        onPress: () => { if (testId) RestTimerActivity.end(true); },
+      }]
+    );
+  };
 
   // ─── Animated selection ────
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -348,35 +390,34 @@ export default function SettingsScreen() {
         {/* Live Activity diagnostics */}
         <TouchableOpacity
           style={[styles.resetBtn, { borderColor: C.accent + '40', marginTop: 8 }]}
-          onPress={async () => {
-            const d = RestTimerActivity.diagnostics();
-            const testId = await RestTimerActivity.start({
-              athleteName: 'Diagnóstico',
-              totalSec: 30,
-              remainingSec: 30,
-            });
-            const after = RestTimerActivity.diagnostics();
-            Alert.alert(
-              'Live Activity — Diagnóstico',
-              `Plataforma: ${d.platform}\n` +
-              `Módulo nativo enlazado: ${d.moduleLinked ? 'SÍ' : 'NO'}\n` +
-              `Live Activities habilitadas (Ajustes): ${d.liveActivitiesEnabled ? 'SÍ' : 'NO'}\n` +
-              `Test start → ID: ${testId ?? 'null'}\n` +
-              `Último error: ${after.lastError ?? '—'}\n\n` +
-              (testId
-                ? 'Mira la Dynamic Island / pantalla bloqueada ahora. Pulsa OK para detenerla.'
-                : 'No se pudo iniciar. Revisa Ajustes → Bigger Fitness → Permitir actividades en vivo.'),
-              [{
-                text: 'OK',
-                onPress: () => { if (testId) RestTimerActivity.end(true); },
-              }]
-            );
-          }}
+          onPress={runLiveActivityDiag}
           activeOpacity={0.7}
         >
           <Ionicons name="bug-outline" size={16} color={C.accent} />
           <Text style={[styles.resetBtnText, { color: C.accent }]}>Probar Live Activity</Text>
         </TouchableOpacity>
+
+        {/* Persistent on-screen report (in case Alert doesn't render) */}
+        {liveActivityReport && (
+          <View style={{
+            marginTop: 10,
+            padding: 12,
+            borderRadius: 12,
+            backgroundColor: C.card,
+            borderWidth: 1,
+            borderColor: C.border,
+          }}>
+            <Text style={{ color: C.text, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 11 }} selectable>
+              {liveActivityReport}
+            </Text>
+            <TouchableOpacity
+              onPress={() => { setLiveActivityReport(null); RestTimerActivity.end(true); }}
+              style={{ marginTop: 8, alignSelf: 'flex-end' }}
+            >
+              <Text style={{ color: C.danger, fontSize: 12, fontWeight: '600' }}>Cerrar y detener</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Footer */}
         <Text style={[styles.footerText, { color: C.muted }]}>
