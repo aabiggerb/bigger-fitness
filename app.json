@@ -60,7 +60,8 @@
         }
       ],
       "expo-font",
-      "@bacons/apple-targets"
+      "@bacons/apple-targets",
+      "./plugins/withWidgetVersionSync.js"
     ],
     "extra": {
       "router": {},
