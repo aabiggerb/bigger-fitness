@@ -5,6 +5,7 @@
 import ActivityKit
 import Foundation
 
+@available(iOS 16.1, *)
 public struct RestTimerAttributes: ActivityAttributes {
   public struct ContentState: Codable, Hashable {
     public var endsAt: Date
