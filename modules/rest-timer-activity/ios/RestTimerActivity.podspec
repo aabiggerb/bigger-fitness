@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.description    = 'Local Expo module exposing start/update/end Live Activity APIs to JavaScript.'
   s.author         = ''
   s.homepage       = 'https://github.com/aabiggerb/bigger-fitness'
-  s.platforms      = { :ios => '16.2' }
+  s.platforms      = { :ios => '15.1' }
   s.source         = { git: '' }
   s.static_framework = true
 
