@@ -16,12 +16,15 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.asysa.biggerfitness",
+      "appleTeamId": "GX9SC7PU7Q",
       "backgroundColor": "#0a192f",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
         ],
         "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true,
+        "NSSupportsLiveActivitiesFrequentUpdates": true,
         "NSCameraUsageDescription": "Esta app usa la cámara para tomar fotos de progreso de los clientes.",
         "NSPhotoLibraryUsageDescription": "Esta app accede a tu galería para adjuntar fotos de progreso de los clientes.",
         "NSPhotoLibraryAddUsageDescription": "Esta app guarda fotos de progreso en tu galería.",
@@ -56,7 +59,8 @@
           "sounds": []
         }
       ],
-      "expo-font"
+      "expo-font",
+      "@bacons/apple-targets"
     ],
     "extra": {
       "router": {},

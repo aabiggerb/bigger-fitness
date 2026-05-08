@@ -10,6 +10,7 @@ import {
   cancelRestTimerNotification,
   cancelAllRestNotifications,
 } from '../utils/notifications';
+import RestTimerActivity from '../../modules/rest-timer-activity';
 import { useTheme } from '../context/ThemeContext';
 import { ThemeColors } from '../theme/themes';
 
@@ -307,6 +308,8 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
       Vibration.cancel();
       stopAlarmSound();
       cancelRestTimerNotification(notifIdRef.current);
+      // Best-effort: end any Live Activity tied to this timer instance
+      RestTimerActivity.end(true);
     };
   }, []);
 
@@ -318,6 +321,13 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
       const t = setTimeout(() => {
         setIsRunning(true);
         setTimerFinished(false);
+        // Live Activity for the auto-started timer
+        const totalSec = Math.max(1, Math.round(totalMs / 1000));
+        RestTimerActivity.start({
+          athleteName: athleteName || 'Atleta',
+          totalSec,
+          remainingSec: totalSec,
+        });
         startInterval(totalMs);
       }, 100);
       return () => clearTimeout(t);
@@ -361,6 +371,9 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
         setTimerFinished(true);
         setRemainingMs(0);
 
+        // Mark Live Activity as finished (turns red, shows ¡LISTO!)
+        RestTimerActivity.update({ isFinished: true });
+
         if (alarmUntilDismissed) {
           // Start continuous alarm — vibrate every 1.5s + play alarm sound until dismissed
           Vibration.vibrate(400);
@@ -386,6 +399,7 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
   // ─── Start / Resume ────
   const startTimer = () => {
     let startMs = remainingMs;
+    const wasPausedResume = isPaused && !timerFinished;
     if (timerFinished || (!isRunning && !isPaused)) {
       startMs = totalMs;
       setRemainingMs(totalMs);
@@ -402,6 +416,20 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
       notifIdRef.current = id;
     });
 
+    // Live Activity (Dynamic Island / lock screen)
+    const totalSec = Math.max(1, Math.round(totalMs / 1000));
+    const remainingSec = Math.max(1, Math.round(startMs / 1000));
+    if (wasPausedResume) {
+      // Resume the existing activity (recompute endsAt from new remaining)
+      RestTimerActivity.update({ isPaused: false, remainingSec, totalSec });
+    } else {
+      RestTimerActivity.start({
+        athleteName: athleteName || 'Atleta',
+        totalSec,
+        remainingSec,
+      });
+    }
+
     startInterval(startMs);
   };
 
@@ -414,6 +442,9 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
     // Cancel scheduled notification while paused
     cancelRestTimerNotification(notifIdRef.current);
     notifIdRef.current = null;
+    // Freeze Live Activity at current remaining
+    const remainingSec = Math.max(0, Math.round(remainingMs / 1000));
+    RestTimerActivity.update({ isPaused: true, remainingSec });
   };
 
   // ─── Dismiss alarm ────
@@ -427,6 +458,7 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
     setAlarmActive(false);
     cancelRestTimerNotification(notifIdRef.current);
     notifIdRef.current = null;
+    RestTimerActivity.end(true);
     if (onTimerComplete) {
       onTimerComplete();
     }
@@ -447,6 +479,7 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
     stopAlarmSound();
     cancelRestTimerNotification(notifIdRef.current);
     notifIdRef.current = null;
+    RestTimerActivity.end(true);
   }, [totalMs]);
 
   // ─── Force stop (no onTimerComplete callback) ────
@@ -464,6 +497,7 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
     stopAlarmSound();
     cancelRestTimerNotification(notifIdRef.current);
     notifIdRef.current = null;
+    RestTimerActivity.end(true);
   }, [totalMs]);
 
   // ─── Expose methods via ref ────

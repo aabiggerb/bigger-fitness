@@ -1,0 +1,7 @@
+{
+  "name": "rest-timer-activity",
+  "version": "1.0.0",
+  "description": "Local Expo module bridging ActivityKit Live Activities for the rest timer.",
+  "main": "index.ts",
+  "private": true
+}
