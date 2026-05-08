@@ -108,6 +108,17 @@ export default function LiveSessionScreen() {
   const [preferredAnalogMode, setPreferredAnalogMode] = useState(true);
   // Track if timer was auto-started to avoid re-triggering
   const [timerAutoStart, setTimerAutoStart] = useState(false);
+
+  // Force-dismiss keyboard whenever timer overlay opens (overlay is not a Modal,
+  // so underlying TextInputs keep focus otherwise).
+  useEffect(() => {
+    if (showTimerModal) {
+      Keyboard.dismiss();
+      // Run again on next tick in case a TextInput re-focused after the state update
+      const t = setTimeout(() => Keyboard.dismiss(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [showTimerModal]);
   // Key to remount RestTimer only when starting a new rest period
   const [timerKey, setTimerKey] = useState(0);
 
