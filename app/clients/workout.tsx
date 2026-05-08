@@ -64,6 +64,15 @@ export default function WorkoutScreen() {
     return () => { showSub.remove(); hideSub.remove(); };
   }, []);
 
+  // While the rest timer is open, aggressively dismiss the keyboard if anything
+  // tries to bring it back (e.g. underlying TextInput regains focus).
+  useEffect(() => {
+    if (!showFullTimer) return;
+    Keyboard.dismiss();
+    const sub = Keyboard.addListener('keyboardDidShow', () => Keyboard.dismiss());
+    return () => sub.remove();
+  }, [showFullTimer]);
+
   // Detect today's weekday and find matching active plan
   const todayWeekDay = WEEKDAY_MAP[new Date().getDay()];
   const todayPlan = useMemo(() => {

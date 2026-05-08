@@ -8,11 +8,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0a192f"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.asysa.biggerfitness",
@@ -60,6 +55,19 @@
         }
       ],
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#0a192f",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0a192f"
+          }
+        }
+      ],
       "@bacons/apple-targets",
       "./plugins/withWidgetVersionSync.js"
     ],
