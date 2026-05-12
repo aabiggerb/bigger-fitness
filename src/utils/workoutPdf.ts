@@ -49,17 +49,17 @@ async function getLogoBase64(): Promise<string> {
 
 // ─── Helpers ────
 function rpeColor(rpe: number): string {
-  if (rpe >= 9) return '#ff4444';
-  if (rpe >= 7) return '#FFA726';
-  if (rpe >= 5) return '#64ffda';
-  return '#8892b0';
+  if (rpe >= 9) return '#d92020';
+  if (rpe >= 7) return '#e07a00';
+  if (rpe >= 5) return '#0a8a6f';
+  return '#5a6478';
 }
 
 function rpeBgColor(rpe: number): string {
-  if (rpe >= 9) return '#ff444420';
-  if (rpe >= 7) return '#FFA72620';
-  if (rpe >= 5) return '#64ffda20';
-  return '#8892b020';
+  if (rpe >= 9) return '#fde8e8';
+  if (rpe >= 7) return '#fff1dd';
+  if (rpe >= 5) return '#dcfff5';
+  return '#e8ecf4';
 }
 
 function rpeLabel(rpe: number): string {
@@ -130,10 +130,10 @@ function rpeDistributionHtml(allSets: ExerciseSet[]): string {
   if (withRpe.length === 0) return '';
 
   const buckets: Record<string, { count: number; color: string; label: string }> = {
-    '1-4': { count: 0, color: '#8892b0', label: 'Ligero (1-4)' },
-    '5-6': { count: 0, color: '#64ffda', label: 'Moderado (5-6)' },
-    '7-8': { count: 0, color: '#FFA726', label: 'Intenso (7-8)' },
-    '9-10': { count: 0, color: '#ff4444', label: 'Máximo (9-10)' },
+    '1-4': { count: 0, color: '#5a6478', label: 'Ligero (1-4)' },
+    '5-6': { count: 0, color: '#0a8a6f', label: 'Moderado (5-6)' },
+    '7-8': { count: 0, color: '#e07a00', label: 'Intenso (7-8)' },
+    '9-10': { count: 0, color: '#d92020', label: 'Máximo (9-10)' },
   };
 
   withRpe.forEach(s => {
@@ -199,6 +199,102 @@ function muscleVolumeMapHtml(
     <div class="analysis-card">
       <div class="analysis-title">💪 Volumen por Grupo Muscular</div>
       ${rows}
+    </div>`;
+}
+
+// ─── Build progression chart (SVG line) for an exercise ────
+function progressionChartSvg(
+  exerciseId: string | undefined,
+  clientId: string | undefined,
+  currentSets: ExerciseSet[],
+  unit: 'kg' | 'lbs',
+  historicalLogs?: Record<string, ExerciseLog[]>,
+): string {
+  if (!exerciseId || !historicalLogs) return '';
+
+  // Collect prior sessions for this exercise
+  const allLogs: ExerciseLog[] = [];
+  for (const [key, logs] of Object.entries(historicalLogs)) {
+    if (key.endsWith(`:${exerciseId}`) || key === exerciseId) {
+      allLogs.push(...logs);
+    }
+  }
+
+  // Group max weight per date
+  const byDate = new Map<string, number>();
+  allLogs.forEach(l => {
+    const max = Math.max(...l.sets.map(s => s.weight));
+    if (!byDate.has(l.date) || (byDate.get(l.date)! < max)) byDate.set(l.date, max);
+  });
+
+  // Add current session as the last point (today)
+  const today = new Date().toISOString().split('T')[0];
+  const currentMax = currentSets.length ? Math.max(...currentSets.map(s => s.weight)) : 0;
+  if (currentMax > 0) byDate.set(today, currentMax);
+
+  // Build sorted points (last 8)
+  const sorted = Array.from(byDate.entries())
+    .sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime())
+    .slice(-8);
+
+  if (sorted.length < 2) return ''; // not enough data
+
+  const points = sorted.map(([date, w]) => ({
+    date,
+    weight: formatWeight(w, unit),
+  }));
+
+  const W = 340, H = 110, P = 26;
+  const innerW = W - P * 2;
+  const innerH = H - P * 2 - 14;
+  const maxW = Math.max(...points.map(p => p.weight));
+  const minW = Math.min(...points.map(p => p.weight));
+  const range = Math.max(1, maxW - minW);
+
+  const xs = (i: number) => P + (points.length === 1 ? innerW / 2 : (innerW * i) / (points.length - 1));
+  const ys = (w: number) => P + innerH - ((w - minW) / range) * innerH;
+
+  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xs(i).toFixed(1)} ${ys(p.weight).toFixed(1)}`).join(' ');
+
+  const dots = points.map((p, i) => {
+    const cx = xs(i).toFixed(1);
+    const cy = ys(p.weight).toFixed(1);
+    const isLast = i === points.length - 1;
+    return `<circle cx="${cx}" cy="${cy}" r="${isLast ? 4.5 : 3}" fill="${isLast ? '#0a8a6f' : '#0a192f'}" stroke="#fff" stroke-width="1.5"/>`;
+  }).join('');
+
+  const labels = points.map((p, i) => {
+    const d = new Date(p.date + 'T12:00:00');
+    const lbl = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return `<text x="${xs(i).toFixed(1)}" y="${(H - 4).toFixed(1)}" font-size="9" fill="#5a6478" text-anchor="middle">${lbl}</text>`;
+  }).join('');
+
+  // Grid baseline + max label
+  const baseline = `<line x1="${P}" y1="${P + innerH}" x2="${W - P}" y2="${P + innerH}" stroke="#e8ecf4" stroke-width="1"/>`;
+  const maxLabel = `<text x="${P - 4}" y="${(P + 4).toFixed(1)}" font-size="9" fill="#5a6478" text-anchor="end">${maxW} ${unit}</text>`;
+  const minLabel = `<text x="${P - 4}" y="${(P + innerH + 3).toFixed(1)}" font-size="9" fill="#5a6478" text-anchor="end">${minW} ${unit}</text>`;
+
+  // Trend
+  const first = points[0].weight;
+  const last = points[points.length - 1].weight;
+  const trendPct = first > 0 ? ((last - first) / first) * 100 : 0;
+  const trendColor = trendPct > 0 ? '#0a8a6f' : trendPct < 0 ? '#d92020' : '#5a6478';
+  const trendArrow = trendPct > 0 ? '▲' : trendPct < 0 ? '▼' : '=';
+
+  return `
+    <div class="progress-chart">
+      <div class="progress-chart-header">
+        <span class="progress-chart-title">📈 Progresión peso máximo</span>
+        <span class="progress-chart-trend" style="color:${trendColor}">${trendArrow} ${Math.abs(trendPct).toFixed(0)}% (${points.length} sesiones)</span>
+      </div>
+      <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+        ${baseline}
+        ${maxLabel}
+        ${minLabel}
+        <path d="${path}" stroke="#0a192f" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        ${dots}
+        ${labels}
+      </svg>
     </div>`;
 }
 
@@ -286,6 +382,8 @@ function buildExerciseHtml(
     ? `<div class="ex-notes"><span class="notes-icon">📝</span> ${ex.notes}</div>`
     : '';
 
+  const chartHtml = progressionChartSvg(ex.exerciseId, undefined, ex.sets, unit, historicalLogs);
+
   const totalVol = formatWeight(currentVol, unit);
   const isPR = prev && currentBest && bestSet(prev.sets)
     ? currentBest.weight > bestSet(prev.sets)!.weight
@@ -317,6 +415,7 @@ function buildExerciseHtml(
         </thead>
         <tbody>${setRows}</tbody>
       </table>
+      ${chartHtml}
       ${notesHtml}
     </div>`;
 }
@@ -452,7 +551,7 @@ async function buildHtml(data: PdfSessionData): Promise<string> {
   }
   .cover-right { text-align: left; }
   .cover-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
-  .cover-meta { font-size: 13px; color: #8892b0; }
+  .cover-meta { font-size: 13px; color: #5a6478; }
   .cover-date { font-size: 15px; color: #64ffda; font-weight: 600; margin-top: 4px; }
 
   /* Global KPI Strip */
@@ -467,8 +566,8 @@ async function buildHtml(data: PdfSessionData): Promise<string> {
   }
   .global-kpi-val { font-size: 26px; font-weight: 800; color: #0a192f; }
   .global-kpi-label {
-    font-size: 10px; color: #8892b0; text-transform: uppercase;
-    letter-spacing: 1.5px; margin-top: 3px; font-weight: 600;
+    font-size: 10px; color: #4a5568; text-transform: uppercase;
+    letter-spacing: 1.5px; margin-top: 3px; font-weight: 700;
   }
 
   /* Athlete section */
@@ -504,8 +603,8 @@ async function buildHtml(data: PdfSessionData): Promise<string> {
   .kpi-icon { font-size: 22px; margin-bottom: 4px; }
   .kpi-value { font-size: 24px; font-weight: 800; color: #0a192f; }
   .kpi-label {
-    font-size: 10px; color: #8892b0; text-transform: uppercase;
-    letter-spacing: 1px; font-weight: 600; margin-top: 3px;
+    font-size: 10px; color: #4a5568; text-transform: uppercase;
+    letter-spacing: 1px; font-weight: 700; margin-top: 3px;
   }
 
   /* Analysis Cards — stacked vertically */
@@ -519,17 +618,17 @@ async function buildHtml(data: PdfSessionData): Promise<string> {
   }
   .analysis-title { font-size: 15px; font-weight: 700; color: #0a192f; margin-bottom: 12px; }
   .rpe-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .rpe-row-label { width: 110px; font-size: 13px; color: #666; font-weight: 600; }
+  .rpe-row-label { width: 110px; font-size: 13px; color: #2d3748; font-weight: 600; }
   .rpe-bar-track { flex: 1; height: 16px; background: #e8ecf4; border-radius: 8px; overflow: hidden; }
   .rpe-bar-fill { height: 100%; border-radius: 8px; }
   .rpe-row-val { width: 70px; text-align: right; font-size: 13px; font-weight: 700; color: #0a192f; }
-  .rpe-row-val small { font-weight: 500; color: #8892b0; }
+  .rpe-row-val small { font-weight: 500; color: #5a6478; }
 
   .muscle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .muscle-name { width: 90px; font-size: 13px; font-weight: 700; color: #0a192f; }
   .muscle-bar-track { flex: 1; height: 16px; background: #e8ecf4; border-radius: 8px; overflow: hidden; }
   .muscle-bar-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, #64ffda, #0a192f); }
-  .muscle-meta { width: 100%; font-size: 11px; color: #8892b0; font-weight: 600; text-align: right; }
+  .muscle-meta { width: 100%; font-size: 11px; color: #4a5568; font-weight: 700; text-align: right; }
 
   /* Section subtitle */
   .section-subtitle {
@@ -551,7 +650,7 @@ async function buildHtml(data: PdfSessionData): Promise<string> {
   .ex-header-left { flex: 1; }
   .ex-header-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .ex-name { font-size: 16px; font-weight: 700; color: #0a192f; }
-  .ex-muscle { font-size: 12px; color: #8892b0; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .ex-muscle { font-size: 12px; color: #4a5568; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; font-weight: 600; }
   .ex-stat {
     font-size: 13px; font-weight: 700; color: #0a192f;
     background: #e8ecf4; padding: 4px 10px; border-radius: 10px;
@@ -569,17 +668,17 @@ async function buildHtml(data: PdfSessionData): Promise<string> {
     border-radius: 10px; font-weight: 700; font-size: 11px;
     text-transform: uppercase; letter-spacing: 0.5px;
   }
-  .comp-item { font-weight: 600; color: #666; }
-  .delta-up { color: #4CAF50; font-weight: 700; }
-  .delta-down { color: #ff4444; font-weight: 700; }
-  .delta-same { color: #8892b0; font-weight: 600; }
-  .mini-up { color: #4CAF50; font-size: 12px; font-weight: 700; }
-  .mini-down { color: #ff4444; font-size: 12px; font-weight: 700; }
+  .comp-item { font-weight: 600; color: #2d3748; }
+  .delta-up { color: #0a8a6f; font-weight: 700; }
+  .delta-down { color: #d92020; font-weight: 700; }
+  .delta-same { color: #5a6478; font-weight: 600; }
+  .mini-up { color: #0a8a6f; font-size: 12px; font-weight: 700; }
+  .mini-down { color: #d92020; font-size: 12px; font-weight: 700; }
 
   /* Sets table */
   .sets-table { width: 100%; border-collapse: collapse; }
   .sets-table th {
-    font-size: 10px; color: #8892b0; text-transform: uppercase;
+    font-size: 10px; color: #4a5568; text-transform: uppercase;
     letter-spacing: 1px; padding: 10px 8px; text-align: center;
     font-weight: 700; background: #fafbfe;
   }
@@ -590,15 +689,15 @@ async function buildHtml(data: PdfSessionData): Promise<string> {
     padding: 10px 8px; border-top: 1px solid #f0f2f8;
     text-align: center; font-size: 14px;
   }
-  .set-num { font-weight: 700; color: #8892b0; width: 44px; }
-  .set-val { font-weight: 600; color: #1a1a2e; }
-  .set-vol { font-weight: 600; color: #8892b0; font-size: 13px; }
+  .set-num { font-weight: 700; color: #4a5568; width: 44px; }
+  .set-val { font-weight: 700; color: #0a192f; }
+  .set-vol { font-weight: 600; color: #4a5568; font-size: 13px; }
   .set-rpe { width: 80px; }
   .rpe-badge {
     display: inline-block; padding: 4px 10px; border-radius: 12px;
     font-size: 14px; font-weight: 700;
   }
-  .rpe-na { color: #ccc; }
+  .rpe-na { color: #94a3b8; }
   .rpe-mini-bar {
     display: inline-block; width: 44px; height: 6px; background: #e8ecf4;
     border-radius: 3px; overflow: hidden; vertical-align: middle; margin-left: 4px;
@@ -608,17 +707,30 @@ async function buildHtml(data: PdfSessionData): Promise<string> {
   .ex-notes {
     padding: 12px 16px; background: #fefef5;
     border-top: 1px solid #f0f2f8; font-size: 13px;
-    color: #666; font-style: italic;
+    color: #2d3748; font-style: italic;
   }
   .notes-icon { font-style: normal; }
+
+  /* Progression chart */
+  .progress-chart {
+    padding: 12px 16px 6px;
+    background: #fafbfe;
+    border-top: 1px solid #f0f2f8;
+  }
+  .progress-chart-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 4px;
+  }
+  .progress-chart-title { font-size: 12px; font-weight: 700; color: #0a192f; }
+  .progress-chart-trend { font-size: 12px; font-weight: 700; }
 
   /* Footer */
   .footer {
     margin-top: 24px; padding-top: 16px; border-top: 2px solid #e8ecf4;
-    text-align: center; color: #b0b8cc; font-size: 12px;
+    text-align: center; color: #4a5568; font-size: 12px;
   }
   .footer strong { color: #0a192f; }
-  .footer-note { margin-top: 6px; font-size: 10px; color: #ccc; }
+  .footer-note { margin-top: 6px; font-size: 10px; color: #5a6478; }
 </style>
 </head>
 <body>

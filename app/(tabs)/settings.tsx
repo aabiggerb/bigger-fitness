@@ -16,6 +16,12 @@ import {
   stopAlarmSound,
 } from '../../src/utils/alarmSound';
 import RestTimerActivity from '../../modules/rest-timer-activity';
+import {
+  DEFAULT_REST_OPTIONS,
+  loadDefaultRestSeconds,
+  saveDefaultRestSeconds,
+  formatRestSeconds,
+} from '../../src/utils/restPreferences';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const CARD_W = (SCREEN_W - 48 - 12) / 2; // 2 columns, 16px padding each side + 12px gap
@@ -27,14 +33,25 @@ export default function SettingsScreen() {
   const [selectedAlarm, setSelectedAlarm] = useState<AlarmSoundType>('beep');
   const [showAlarmPicker, setShowAlarmPicker] = useState(false);
 
+  // ─── Default rest seconds ────
+  const [defaultRest, setDefaultRest] = useState<number>(90);
+  const [showRestPicker, setShowRestPicker] = useState(false);
+
   useEffect(() => {
     loadAlarmSoundPreference().then(setSelectedAlarm);
+    loadDefaultRestSeconds().then(setDefaultRest);
   }, []);
 
   const handleAlarmSelect = async (type: AlarmSoundType) => {
     setSelectedAlarm(type);
     await saveAlarmSoundPreference(type);
     previewAlarmSound(type);
+  };
+
+  const handleRestSelect = async (seconds: number) => {
+    setDefaultRest(seconds);
+    await saveDefaultRestSeconds(seconds);
+    setShowRestPicker(false);
   };
 
   // Stop preview when closing picker
@@ -332,6 +349,62 @@ export default function SettingsScreen() {
                   </TouchableOpacity>
                 );
               })}
+            </View>
+          )}
+
+          <View style={[styles.prefDivider, { backgroundColor: C.border }]} />
+
+          {/* Default Rest Seconds Picker */}
+          <TouchableOpacity
+            style={styles.prefRow}
+            onPress={() => setShowRestPicker(!showRestPicker)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.prefIconWrap, { backgroundColor: C.accentDim }]}>
+              <Ionicons name="timer-outline" size={16} color={C.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.prefLabel, { color: C.text }]}>Tiempo de descanso predeterminado</Text>
+              <Text style={[styles.prefSublabel, { color: C.muted }]}>
+                {formatRestSeconds(defaultRest)}
+              </Text>
+            </View>
+            <Ionicons
+              name={showRestPicker ? 'chevron-up' : 'chevron-down'}
+              size={18}
+              color={C.muted}
+            />
+          </TouchableOpacity>
+
+          {showRestPicker && (
+            <View style={[styles.alarmPickerContainer, { borderTopColor: C.border }]}>
+              <View style={styles.restGrid}>
+                {DEFAULT_REST_OPTIONS.map((sec) => {
+                  const isSelected = defaultRest === sec;
+                  return (
+                    <TouchableOpacity
+                      key={sec}
+                      style={[
+                        styles.restChip,
+                        { borderColor: C.border, backgroundColor: C.bg },
+                        isSelected && { backgroundColor: C.accentDim, borderColor: C.accent },
+                      ]}
+                      onPress={() => handleRestSelect(sec)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.restChipText,
+                          { color: isSelected ? C.accent : C.text },
+                          isSelected && { fontWeight: '700' },
+                        ]}
+                      >
+                        {formatRestSeconds(sec)}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           )}
 
@@ -727,6 +800,25 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Rest seconds chips grid
+  restGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  restChip: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: 78,
+    alignItems: 'center',
+  },
+  restChipText: {
+    fontSize: 13,
   },
 
   // About

@@ -531,6 +531,13 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
         notifIdRef.current = id;
       });
 
+      // Live Activity: update countdown so lock-screen reflects new duration
+      RestTimerActivity.update({
+        totalSec: seconds,
+        remainingSec: Math.max(0, Math.round(newRemaining / 1000)),
+        isPaused: false,
+      });
+
       // Notify parent so background timer can sync
       onDurationChange?.(seconds, newRemaining);
     } else if (isPaused) {
@@ -541,6 +548,13 @@ export const RestTimer = forwardRef<RestTimerHandle, RestTimerProps>(({
       setTotalMs(newTotalMs);
       setRemainingMs(newRemaining);
       setShowPresets(false);
+
+      // Live Activity: update while staying paused
+      RestTimerActivity.update({
+        totalSec: seconds,
+        remainingSec: Math.max(0, Math.round(newRemaining / 1000)),
+        isPaused: true,
+      });
 
       // Notify parent so background timer can sync
       onDurationChange?.(seconds, newRemaining);

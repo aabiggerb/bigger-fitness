@@ -9,6 +9,7 @@ import { ExercisePicker } from '../../src/components/ExercisePicker';
 import { RestTimer } from '../../src/components/RestTimer';
 import { RPEFeedbackModal } from '../../src/components/RPEFeedbackModal';
 import { generateId } from '../../src/utils/generateId';
+import { loadDefaultRestSeconds, FALLBACK_REST_SECONDS } from '../../src/utils/restPreferences';
 import { useTheme } from '../../src/context/ThemeContext';
 import { ThemeColors } from '../../src/theme/themes';
 
@@ -42,6 +43,11 @@ export default function WorkoutScreen() {
   const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
   const [planAutoLoaded, setPlanAutoLoaded] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [userDefaultRest, setUserDefaultRest] = useState<number>(FALLBACK_REST_SECONDS);
+
+  useEffect(() => {
+    loadDefaultRestSeconds().then(setUserDefaultRest);
+  }, []);
 
   // ─── Rest Timer & RPE Feedback state ───
   const [showFullTimer, setShowFullTimer] = useState(false);
@@ -346,7 +352,7 @@ export default function WorkoutScreen() {
       {showFullTimer && entries.length > 0 && (
         <View style={s.timerSection}>
           <RestTimer
-            defaultRestSeconds={activeTimerEntry !== null ? getRestSecondsForEntry(activeTimerEntry) : 90}
+            defaultRestSeconds={activeTimerEntry !== null ? getRestSecondsForEntry(activeTimerEntry) : userDefaultRest}
             onTimerComplete={handleTimerComplete}
             athleteName={client?.name}
           />

@@ -6,6 +6,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '../../src/context/ThemeContext';
 import { ThemeColors } from '../../src/theme/themes';
+import {
+  generateAndShareWorkoutPdf,
+  PdfAthleteData,
+  PdfSessionData,
+} from '../../src/utils/workoutPdf';
+import { ExerciseLog } from '../../src/types';
+
+const ATHLETE_COLORS = ['#64ffda', '#ff6b9d', '#ffa726', '#9c88ff', '#4ecdc4'];
 
 interface SessionGroup {
   date: string;
@@ -98,6 +106,53 @@ export default function WorkoutHistoryScreen() {
     );
   };
 
+  const handleShareSession = async (session: SessionGroup) => {
+    if (!client) return;
+    try {
+      const sessionLogs = exerciseLogs.filter(l => session.logIds.includes(l.id));
+
+      // Build PDF athlete data from logs
+      const athleteData: PdfAthleteData = {
+        clientName: client.name,
+        clientColor: ATHLETE_COLORS[0],
+        exercises: sessionLogs.map(log => {
+          const ex = exercises.find(e => e.id === log.exerciseId);
+          return {
+            name: ex?.name || 'Ejercicio',
+            muscleGroup: ex?.muscleGroup || 'Otro',
+            sets: log.sets,
+            notes: log.notes,
+            exerciseId: log.exerciseId,
+          };
+        }),
+      };
+
+      // Build historical logs map for comparison vs prior sessions
+      const historicalLogs: Record<string, ExerciseLog[]> = {};
+      sessionLogs.forEach(log => {
+        const key = `${client.id}:${log.exerciseId}`;
+        const priorLogs = exerciseLogs.filter(
+          l => l.clientId === client.id && l.exerciseId === log.exerciseId && l.date < session.date
+        );
+        if (priorLogs.length > 0) historicalLogs[key] = priorLogs;
+      });
+
+      const d = new Date(session.date + 'T12:00:00');
+      const pdfData: PdfSessionData = {
+        date: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`,
+        duration: '—',
+        athletes: [athleteData],
+        weightUnit: 'kg',
+        historicalLogs,
+      };
+
+      await generateAndShareWorkoutPdf(pdfData);
+    } catch (e) {
+      console.error('Share PDF error:', e);
+      Alert.alert('Error', 'No se pudo generar el PDF.');
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + 'T12:00:00');
     const today = new Date();
@@ -135,6 +190,12 @@ export default function WorkoutHistoryScreen() {
           </View>
         </View>
         <View style={s.sessionActions}>
+          <TouchableOpacity
+            style={s.editBtn}
+            onPress={() => handleShareSession(item)}
+          >
+            <Ionicons name="share-outline" size={16} color={C.accent} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={s.editBtn}
             onPress={() =>

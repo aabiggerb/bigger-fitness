@@ -13,6 +13,7 @@ import { RestTimer, RestTimerHandle } from '../../src/components/RestTimer';
 import { RPEFeedbackModal } from '../../src/components/RPEFeedbackModal';
 import { generateId } from '../../src/utils/generateId';
 import { generateAndShareWorkoutPdf, PdfAthleteData, PdfSessionData } from '../../src/utils/workoutPdf';
+import { loadDefaultRestSeconds } from '../../src/utils/restPreferences';
 import { loadAlarmSoundPreference } from '../../src/utils/alarmSound';
 import { useTheme } from '../../src/context/ThemeContext';
 import { ThemeColors } from '../../src/theme/themes';
@@ -105,6 +106,11 @@ export default function LiveSessionScreen() {
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [timerAthleteId, setTimerAthleteId] = useState<string | null>(null);
   const [timerDefaultSec, setTimerDefaultSec] = useState(90);
+
+  // Load user-preferred default rest seconds from settings
+  useEffect(() => {
+    loadDefaultRestSeconds().then(setTimerDefaultSec);
+  }, []);
   const [preferredAnalogMode, setPreferredAnalogMode] = useState(true);
   // Track if timer was auto-started to avoid re-triggering
   const [timerAutoStart, setTimerAutoStart] = useState(false);
